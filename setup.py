@@ -19,7 +19,7 @@ setup(
     python_requires='>=3.6',
     install_requires=[
         "ipywidgets == 7.5.1",
-        "ipython == 7.8.0",
+        "ipython == 7.16.3",
         "jupyter >= 1.0.0",
         "numpy >= 1.17.1",
         "numba >= 0.48.0",
