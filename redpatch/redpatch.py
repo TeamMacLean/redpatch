@@ -176,7 +176,7 @@ def threshold_hsv_img(im: np.ndarray,
 
     """
     assert im.dtype.type is np.float64, "im must be np.ndarray of type float64. Looks like you're not using an HSV image."
-    return _threshold_three_channels(im, c1_limits=h, c2_limits=s, c3_limits=v)
+    return _threshold_three_channels(im, h[0], h[1], s[0], s[1], v[0], v[1])
 
 
 def hsv_to_rgb255(img: np.ndarray) -> np.ndarray:
@@ -191,40 +191,28 @@ def hsv_to_rgb255(img: np.ndarray) -> np.ndarray:
     """
     return (color.hsv2rgb(img) * 255).astype('int')
 
-@njit
-def _threshold_three_channels(im: np.ndarray,
-                              c1_limits: Tuple[Union[int, float], Union[int, float]] = (0, 1),
-                              c2_limits: Tuple[Union[int, float], Union[int, float]] = (0, 1),
-                              c3_limits: Tuple[Union[int, float], Union[int, float]] = (0, 1)
-                              ) -> np.ndarray:
+def _threshold_three_channels(im, c1_min, c1_max, c2_min, c2_max, c3_min, c3_max):
     """
-    Thresholds an image.
+    Thresholds an image using vectorized numpy operations.
 
     Internal method.
 
-    Returns a logical binary mask array (dtype bool_ of dimension im  in which pixels in im pass the lower
-    and upper thresholds specified in c1_limits, c2_limits and c3_limits respectively)
+    Returns a logical binary mask array in which pixels in im pass the lower
+    and upper thresholds specified for each channel.
 
-    :param: im np.ndarray -- a numpy ndarray
-    :param: c1_limits Tuple -- a 2-tuple of channel 1 thresholds (lower, upper)
-    :param: c2_limits Tuple -- a 2-tuple of channel 2 thresholds (lower, upper)
-    :param: c3_limits Tuple -- a 2-tuple of channel 3 thresholds (lower, upper)
-    :return: np.ndarray -- a logical array (dtype bool_) with shape == im
+    :param: im np.ndarray -- a numpy ndarray (float64)
+    :param: c1_min float -- channel 1 lower threshold
+    :param: c1_max float -- channel 1 upper threshold
+    :param: c2_min float -- channel 2 lower threshold
+    :param: c2_max float -- channel 2 upper threshold
+    :param: c3_min float -- channel 3 lower threshold
+    :param: c3_max float -- channel 3 upper threshold
+    :return: np.ndarray -- a boolean array with shape == im[:,:,0]
     """
-    c1_min, c1_max = c1_limits
-    c2_min, c2_max = c2_limits
-    c3_min, c3_max = c3_limits
-
-    result = np.zeros_like(im[:, :, 0])
-    x_d, y_d, _ = im.shape
-    for x in range(x_d):
-        for y in range(y_d):
-            c1_pass = (im[x, y, 0] >= c1_min and im[x, y, 0] <= c1_max)
-            c2_pass = (im[x, y, 1] >= c2_min and im[x, y, 1] <= c2_max)
-            c3_pass = (im[x, y, 2] >= c3_min and im[x, y, 2] <= c3_max)
-            if c1_pass and c2_pass and c3_pass:
-                result[x, y] = 1
-    return result.astype(np.bool_)
+    c1_pass = (im[:, :, 0] >= c1_min) & (im[:, :, 0] <= c1_max)
+    c2_pass = (im[:, :, 1] >= c2_min) & (im[:, :, 1] <= c2_max)
+    c3_pass = (im[:, :, 2] >= c3_min) & (im[:, :, 2] <= c3_max)
+    return c1_pass & c2_pass & c3_pass
 
 
 def load_as_hsv(fname: str) -> np.ndarray:
@@ -535,15 +523,8 @@ def _fast_threshold_preview(image: np.ndarray, height: int = 15,  width: int = 1
 
         thresh = threshold_hsv_img(i, h=h, s=s, v=v)
 
-        @njit
-        def _do_(i, thresh):
-            x_d,y_d,_ = i.shape
-            for x in range(x_d):
-                for y in range(y_d):
-                    if thresh[x,y]:
-                        i[x,y] = (0, 1, 1)
-            return i
-        i = _do_(i,thresh)
+        # Apply threshold overlay (vectorized, no numba needed for this simple op)
+        i[thresh] = [0, 1, 1]
 
         plt.figure(figsize=(width, height))
         plt.imshow(color.hsv2rgb(i))

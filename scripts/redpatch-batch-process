@@ -38,15 +38,19 @@ Usage Examples:
 
 """
 
-
-import redpatch as rp
+import argparse
 import os
 import sys
-import pandas as pd
-import argparse
 from pathlib import Path
 
-parser = argparse.ArgumentParser(add_help=True, formatter_class=argparse.RawDescriptionHelpFormatter, description = """
+import pandas as pd
+
+import redpatch as rp
+
+parser = argparse.ArgumentParser(
+    add_help=True,
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+    description="""
 
 redpatch-batch-process
 
@@ -70,34 +74,97 @@ Usage Examples:
 
     Create a default filter settings YAML file:
         redpatch-batch-process --create_default_filter ~/Desktop/default_filter.yml
-        
-    Set up for webtool use: 
-    
+
+    Set up for webtool use:
+
         when user selects scale card and gives image with card in
-    
+
             redpatch-batch-process --use_on_server --source_folder  /var/www/tmp_folder_id --destination_folder /var/www/tmp_folder_out --filter_settings /var/www/tmp_folder_id/default_filter.yml --scale_image_name /var/www/tmp/scale_img.jpg
-            
+
         when user doesn't have a scale card image
-        
+
             redpatch-batch-process --use_on_server --source_folder  /var/www/tmp_folder_id --destination_folder /var/www/tmp_folder_out --filter_settings /var/www/tmp_folder_id/default_filter.yml
-        
-""")
 
-parser.add_argument("-s","--source_folder", help='folder containing images to analyse', type = str)
-parser.add_argument("-d","--destination_folder", help='folder to write output. Created if does not exist. ')
-parser.add_argument("-f", "--filter_settings", help="file of filter settings to use.", default="default_filter.yml",type=str )
-parser.add_argument("-c", "--create_default_filter", help="creates a default filter file of name provided and exits", default=False, type=str)
-parser.add_argument("-l", "--scale_card_side_length", help="find a scale card in each image and calculate pixels per centimetre", default=False)
-parser.add_argument("-p", "--pixels_per_cm", help="use a previously known value for pixels per centimetre", default=False, type=float)
-parser.add_argument("-w", "--use_on_server", help="use the tool on the redpatch webserver. Overrides some other options", default=False,action='store_true')
-parser.add_argument("-n", "--scale_image_name", help="the name of the image to use as the scale card image. Use on server only.", default=None)
-parser.add_argument("-a", "--min_lesion_area", help="the minimum area a lesion can be to be retained", default=False, type=float)
-parser.add_argument("-j", "--max_lc_ratio", help="maximum length to width ratio a lesion centre can be", default=False, type = float)
-parser.add_argument("-k", "--min_lc_size", help="minimum size a lesion centre can be.", default=False, type=float)
-parser.add_argument("-m", "--lc_prop_across_parent", help="proportion of lesion width the lesion centre position must exceed to be within to be included. counted from either side", default=False, type = float)
+""",
+)
+
+parser.add_argument(
+    "-s", "--source_folder", help="folder containing images to analyse", type=str
+)
+parser.add_argument(
+    "-d",
+    "--destination_folder",
+    help="folder to write output. Created if does not exist. ",
+)
+parser.add_argument(
+    "-f",
+    "--filter_settings",
+    help="file of filter settings to use.",
+    default="default_filter.yml",
+    type=str,
+)
+parser.add_argument(
+    "-c",
+    "--create_default_filter",
+    help="creates a default filter file of name provided and exits",
+    default=False,
+    type=str,
+)
+parser.add_argument(
+    "-l",
+    "--scale_card_side_length",
+    help="find a scale card in each image and calculate pixels per centimetre",
+    default=False,
+)
+parser.add_argument(
+    "-p",
+    "--pixels_per_cm",
+    help="use a previously known value for pixels per centimetre",
+    default=False,
+    type=float,
+)
+parser.add_argument(
+    "-w",
+    "--use_on_server",
+    help="use the tool on the redpatch webserver. Overrides some other options",
+    default=False,
+    action="store_true",
+)
+parser.add_argument(
+    "-n",
+    "--scale_image_name",
+    help="the name of the image to use as the scale card image. Use on server only.",
+    default=None,
+)
+parser.add_argument(
+    "-a",
+    "--min_lesion_area",
+    help="the minimum area a lesion can be to be retained",
+    default=False,
+    type=float,
+)
+parser.add_argument(
+    "-j",
+    "--max_lc_ratio",
+    help="maximum length to width ratio a lesion centre can be",
+    default=False,
+    type=float,
+)
+parser.add_argument(
+    "-k",
+    "--min_lc_size",
+    help="minimum size a lesion centre can be.",
+    default=False,
+    type=float,
+)
+parser.add_argument(
+    "-m",
+    "--lc_prop_across_parent",
+    help="proportion of lesion width the lesion centre position must exceed to be within to be included. counted from either side",
+    default=False,
+    type=float,
+)
 args = parser.parse_args()
-
-
 
 
 if args.create_default_filter:
@@ -106,7 +173,7 @@ if args.create_default_filter:
     sys.exit("Written default filter file to {}".format(args.create_default_filter))
 elif not args.source_folder or not args.destination_folder:
     parser.print_help(sys.stderr)
-    sys.exit('source and destination folder must be provided')
+    sys.exit("source and destination folder must be provided")
 
 if not os.path.exists(args.source_folder):
     parser.print_help(sys.stderr)
@@ -126,51 +193,67 @@ if args.scale_image_name and not args.scale_card_side_length:
 
 if args.scale_card_side_length and args.pixels_per_cm:
     parser.print_help(sys.stderr)
-    sys.exit("scale card side length AND pixels per cm supplied. Can only work with one.")
+    sys.exit(
+        "scale card side length AND pixels per cm supplied. Can only work with one."
+    )
 
-if not args.scale_card_side_length and not args.pixels_per_cm:
+if (
+    not args.scale_card_side_length
+    and not args.pixels_per_cm
+    and not args.use_on_server
+):
     parser.print_help(sys.stderr)
     sys.exit("need exactly one of --scale_card_side_length or --pixels_per_cm")
 
+
 def _get_scale_card(imfile, fs, side_length):
     im = rp.load_as_hsv(imfile)
-    return rp.griffin_scale_card(im, h=fs['scale_card']['h'],
-                                             s=fs['scale_card']['s'],
-                                             v=fs['scale_card']['v'],
-                                       side_length=side_length
-                                       )
+    return rp.griffin_scale_card(
+        im,
+        h=fs["scale_card"]["h"],
+        s=fs["scale_card"]["s"],
+        v=fs["scale_card"]["v"],
+        side_length=side_length,
+    )
+
 
 def _write_out(file, df, index=False):
     with open(file, "w") as out:
         out.write(df.to_csv(index=index))
 
-def _write_summary(dfs, destination_folder, scale = None):
+
+def _write_summary(dfs, destination_folder, scale=None):
     df = pd.concat(dfs, sort=True)
-    cols = ['image_file', 'sub_image_index', 'area_type']
-    
-    summarised = (df.drop(['label'], axis=1)
-              .groupby(cols)
-              .sum())
+    cols = ["image_file", "sub_image_index", "area_type"]
+
+    summarised = df.drop(["label"], axis=1).groupby(cols).sum()
     if scale:
         l = len(summarised)
-        summarised.insert(0, "scale", [scale] * l, True) #always 4 rows [
+        summarised.insert(0, "scale", [scale] * l, True)  # always 4 rows [
 
-    _write_out(os.path.join(destination_folder, "summary_results.csv"), summarised, index=False)
+    _write_out(
+        os.path.join(destination_folder, "summary_results.csv"), summarised, index=False
+    )
+
 
 def _write_tidy(dfs, destination_folder):
-    df = pd.concat(dfs, sort = True)
+    df = pd.concat(dfs, sort=True)
     _write_out(os.path.join(destination_folder, "results.csv"), df, index=False)
 
+
 def _find_scale(imfile, fs, side_length, pixels_per_cm):
-        if side_length:
-            scale = _get_scale_card(imfile, fs, side_length)
-            if not scale:
-                raise ValueError("No scale card pixel value returned; likely scale card not found in image.")
-            return scale
-        elif pixels_per_cm:
-            return pixels_per_cm
-        else:
-            return None
+    if side_length:
+        scale = _get_scale_card(imfile, fs, side_length)
+        if not scale:
+            raise ValueError(
+                "No scale card pixel value returned; likely scale card not found in image."
+            )
+        return scale
+    elif pixels_per_cm:
+        return pixels_per_cm
+    else:
+        return None
+
 
 def batch_process(folder=".", settings="settings.yml"):
     fs = rp.FilterSettings()
@@ -179,37 +262,54 @@ def batch_process(folder=".", settings="settings.yml"):
     PIXEL_LENGTH = None
 
     if args.scale_card_side_length and not "scale_card" in fs:
-        raise ValueError("scale card side length provided but no scale card image options present in FilterSettings")
+        raise ValueError(
+            "scale card side length provided but no scale card image options present in FilterSettings"
+        )
 
     if args.use_on_server and (args.scale_image_name or args.pixels_per_cm):
         scale_image_name = os.path.join(folder, args.scale_image_name)
-        SCALE = _find_scale(scale_image_name, fs, args.scale_card_side_length, args.pixels_per_cm)
-        PIXEL_LENGTH = 1/SCALE
+        SCALE = _find_scale(
+            scale_image_name, fs, args.scale_card_side_length, args.pixels_per_cm
+        )
+        PIXEL_LENGTH = 1 / SCALE
 
-
-    image_files = [str(file.resolve()) for file in Path(folder).iterdir() if
-                   file.is_file() and not file.name.startswith(".")]
+    image_files = [
+        str(file.resolve())
+        for file in Path(folder).iterdir()
+        if file.is_file() and not file.name.startswith(".")
+    ]
     report = rp.RPReport(folder, image_files, fs)
     all_dfs = []
 
     for imfile in image_files:
         if not args.use_on_server:
             print("...doing image {}".format(imfile), file=sys.stderr)
-            SCALE = _find_scale(imfile, fs, args.scale_card_side_length, args.pixels_per_cm)
-            PIXEL_LENGTH = 1/SCALE
-        sub_ims = rp.subimage.get_sub_images(imfile, file_settings = fs, dest_folder = args.destination_folder, min_lesion_area = args.min_lesion_area, scale = SCALE, pixel_length = PIXEL_LENGTH, max_lc_ratio = args.max_lc_ratio, min_lc_size=args.min_lc_size, lc_prop_across_parent=args.lc_prop_across_parent)
+            SCALE = _find_scale(
+                imfile, fs, args.scale_card_side_length, args.pixels_per_cm
+            )
+            PIXEL_LENGTH = 1 / SCALE
+        sub_ims = rp.subimage.get_sub_images(
+            imfile,
+            file_settings=fs,
+            dest_folder=args.destination_folder,
+            min_lesion_area=args.min_lesion_area,
+            scale=SCALE,
+            pixel_length=PIXEL_LENGTH,
+            max_lc_ratio=args.max_lc_ratio,
+            min_lc_size=args.min_lc_size,
+            lc_prop_across_parent=args.lc_prop_across_parent,
+        )
         for s in sub_ims:
             report.add_subimages(s)
             s.write_sub_image()
             s.write_annotated_sub_image()
             report.add_annotated_subimages(s)
-            all_dfs.append( s.create_results_dataframe(on_webserver=args.use_on_server) )
-    
-    #_write_summary(all_dfs, args.destination_folder, scale = SCALE)
+            all_dfs.append(s.create_results_dataframe(on_webserver=args.use_on_server))
+
+    # _write_summary(all_dfs, args.destination_folder, scale = SCALE)
     _write_tidy(all_dfs, args.destination_folder)
     report.write(os.path.join(args.destination_folder))
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     batch_process(folder=args.source_folder, settings=args.filter_settings)
-
-
